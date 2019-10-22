@@ -1,0 +1,88 @@
+import numpy as np
+import pandas as pd
+
+path='C:/Users/Administrator/Downloads/notebook/order.xls'
+path1='c:/users/administrator/downloads/notebook/buinfo.xls'
+
+df_order=pd.read_excel(path,skiprows=1,dtype=object)
+df_buinfo=pd.read_excel(path1,skiprows=1,dtype=object)
+df_order1=df_order[['分公司','时间','渠道姓名','订单来源','订单状态','是否电信','竣工时间']]
+df_buinfo1=df_buinfo[['分公司','账号','是否电信','状态','添加时间']]
+df_order2=df_order1[(~df_order1.分公司.isin(['测试区局','移动部策划组']))&(~df_order1.时间.str.contains('2018'))]
+
+df_order2['时间']=pd.to_datetime(df_order2['时间'])
+df_order2['竣工时间']=pd.to_datetime(df_order2['竣工时间'])
+df_order2['下单月份']=df_order2.时间.dt.month
+df_order2['竣工月份']=df_order2.竣工时间.dt.month
+df_order2['下单日']=df_order2.时间.dt.day
+df_order2['竣工日']=df_order2.竣工时间.dt.day
+def cutword(word):
+    position=word.find('分')
+    new_word=word[:position]
+    return new_word
+df_order2['分公司']=df_order2.分公司.apply(cutword)
+
+#df_order2[df_order2.分公司.str.contains('开')]
+df_order2.ix[df_order2.分公司=='开县','分公司']='开州'
+df_order月下单=df_order2[df_order2['订单状态']!='已重新下单'].groupby(['分公司','下单月份']).订单来源.count().unstack().fillna(0)
+df_order月下单.loc['合计']=df_order月下单.apply(lambda x:x.sum())
+df_order月下单.astype(int) #月下单统计
+
+df_order月激活=df_order2[df_order2.订单状态=='已发佣金'].groupby(['分公司','竣工月份']).订单来源.count().unstack().fillna(0)
+df_order月激活.loc['合计']=df_order月激活.apply(lambda x:x.sum())
+df_order月激活.astype(int) #月激活统计
+
+df_order日下单=df_order2[(df_order2['订单状态']!='已重新下单')&(df_order2.下单月份==10)].groupby(['分公司','下单日']).订单来源.count().unstack().fillna(0)
+df_order日下单.loc['合计']=df_order日下单.apply(lambda x:x.sum())
+df_order日下单.astype(int) #日下单统计
+
+df_order日激活=df_order2[(df_order2['订单状态']=='已发佣金')&(df_order2.竣工月份==10)].groupby(['分公司','竣工日']).订单来源.count().unstack().fillna(0)
+df_order日激活.loc['合计']=df_order日激活.apply(lambda x:x.sum())
+df_order日激活.astype(int) #日激活统计
+
+df_order二级日激活=df_order2[(df_order2['订单状态']=='已发佣金')&(df_order2.竣工月份==10)&(df_order2.是否电信=='否')].groupby(['分公司','竣工日']).订单来源.count().unstack().fillna(0)
+df_order二级日激活.loc['合计']=df_order二级日激活.apply(lambda x:x.sum())
+df_order二级日激活.astype(int) #二级日激活统计
+
+df_buinfo1['添加时间']=pd.to_datetime(df_buinfo1['添加时间'])
+df_buinfo1['月份']=df_buinfo1.添加时间.dt.month
+df_buinfo1['日']=df_buinfo1.添加时间.dt.day
+df_buinfo2=df_buinfo1[(df_buinfo1['添加时间']>='2019-01-01 00:00:00')&(~df_buinfo1.分公司.isin(['测试区局','移动部策划组','黑名单']))]
+df_buinfo2['分公司']=df_buinfo2.分公司.apply(cutword)
+df_buinfo2.ix[df_buinfo2.分公司=='开县','分公司']='开州'
+
+df_buinfo月触点=df_buinfo2[df_buinfo2.是否电信=='否'].groupby(['分公司','月份']).账号.count().unstack().fillna(0)
+df_buinfo月触点.loc['合计']=df_buinfo月触点.apply(lambda x:x.sum())
+df_buinfo月触点.astype(int) #触点月报
+
+df_buinfo触点日报=df_buinfo2[(df_buinfo2.是否电信=='否')&(df_buinfo2.月份==10)].groupby(['分公司','日']).账号.count().unstack().fillna(0)
+df_buinfo触点日报.loc['合计']=df_buinfo触点日报.apply(lambda x:x.sum())
+df_buinfo触点日报.astype(int) #触点日报
+
+df_order3=df_order2[(df_order2['订单状态']=='已发佣金')&(df_order2.是否电信=='否')]
+df_order4=df_order3[['分公司','渠道姓名','订单来源','是否电信','订单状态','下单月份','竣工月份','下单日','竣工日']]
+df_order5=df_order4.drop_duplicates(['订单来源'],keep='first')
+
+df_order有销触点=df_order5.groupby(['分公司','是否电信']).订单来源.count().fillna(0).unstack()
+df_order有销触点.loc['合计']=df_order有销触点.apply(lambda x:x.sum())
+df_order有销触点.astype(int) #有销触点
+
+下单月报=df_order月下单.astype(int) #月下单统计
+激活月报=df_order月激活.astype(int) #月激活统计
+下单日报=df_order日下单.astype(int) #日下单统计
+激活日报=df_order日激活.astype(int) #日激活统计
+二级激活日报=df_order二级日激活.astype(int) #二级日激活统计
+触点月报=df_buinfo月触点.astype(int) #触点月报
+触点日报=df_buinfo触点日报.astype(int) #触点日报
+有销触点=df_order有销触点.astype(int) #有销触点
+
+with pd.ExcelWriter('d:/淘卡日报.xlsx',encoding='utf8',index=False) as writer:
+    下单月报.to_excel(writer,sheet_name='下单月报')
+    激活月报.to_excel(writer,sheet_name='激活月报')
+    下单日报.to_excel(writer,sheet_name='下单日报')
+    激活日报.to_excel(writer,sheet_name='激活日报')
+    二级激活日报.to_excel(writer,sheet_name='二级激活日报')
+    触点月报.to_excel(writer,sheet_name='触点月报')
+    触点日报.to_excel(writer,sheet_name='触点日报')
+    有销触点.to_excel(writer,sheet_name='有销触点')
+print('结果已导出，请到D盘查看：淘卡日报.xlsx')
